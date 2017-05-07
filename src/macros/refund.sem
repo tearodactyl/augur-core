@@ -2,4 +2,4 @@
 
 macro refund():
     if(msg.value > 0 and !send(msg.sender, msg.value)):
-        throw()
+        ~invalid()
