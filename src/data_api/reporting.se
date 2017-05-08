@@ -50,6 +50,7 @@ def assertDoneReporting(branch, reportingWindow, reporterAddress):
         ~invalid()
     return(1)
 
+# FIXME: gas issue
 def clearUserReports(branch, reportingWindow, reporterAddress):
     self.controller.checkWhitelist(msg.sender)
     i = 0

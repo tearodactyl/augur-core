@@ -186,10 +186,10 @@ def isEventFinalized(eventId):
 def migrateEventThroughAllForks(eventId):
     if (self.isEventFinalized(eventId)):
         return(1)
-    while (self.migrateEventThroughOneFork(eventId)):
+    eventStillMigrating = 1
+    while (eventStillMigrating):
         # this will loop until we run out of gas, follow forking events until there are no more, or have reached an active fork
-        # TODO: fill in
-        return(1)
+        eventStillMigrating = self.migrateEventThroughOneFork(eventId)
     return(1)
 
 # returns 0 if no move occurs, 1 if move occurred, throws if a fork not yet resolved
@@ -385,7 +385,7 @@ def privateTryRedeemTokensOnForkingEvent(eventId, branch, outcome, tokenHolderAd
         return(0)
     parentBranchBits = sha3(branch) & 0xffffffffffffffff000000000000000000000000000000000000000000000000
     eventBits = sha3(eventId) & 0x0000000000000000ffffffffffffffff00000000000000000000000000000000
-    outcomeBits = sha3(outcome) & x
+    outcomeBits = sha3(outcome) & 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff
     outcomeBranch = parentBranchBits | eventBits | outcomeBits
     attotokens = self.events[eventId].tokens[branch][outcome][tokenHolderAddress]
     self.controller.lookup('reputationToken').migrate(branch, outcomeBranch, attotokens)
