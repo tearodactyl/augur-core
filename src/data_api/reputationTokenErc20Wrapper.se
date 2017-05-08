@@ -2,7 +2,14 @@
 
 extern reputationToken: [totalSupply:[uint256]:uint256, balanceOf:[uint256,address]:uint256, transfer:[uint256,address,uint256]:uint256, transferFrom:[uint256,address,address,uint256]:uint256, approve:[uint256,address,uint256]:uint256, allowance:[uint256,address,address]:uint256]
 
+inset('../macros/refund.sem')
+
 data branch
+data name
+data symbol
+data decimals
+data branch
+data backingContract
 
 event Transfer(from:address:indexed, to:address:indexed, attorep:uint256)
 event Approval(owner:address:indexed, spender:address:indexed, attorep:uint256)
@@ -27,20 +34,20 @@ def initialize(branch):
 def totalSupply():
 	return(self.backingContract.totalSupply(self.branch, call=delegate))
 
-def balanceOf(address):
+def balanceOf(address: address):
 	return(self.backingContract.balanceOf(self.branch, address, call=delegate))
 
-def transfer(destinationAddress, attorep):
-    Transfer(msg.sender, destinationAddress, attorep)
+def transfer(destinationAddress: address, attorep: uint256):
+    log(type=Transfer, msg.sender, destinationAddress, attorep)
     return(self.backingContract.transfer(self.branch, address, call=delegate))
 
-def transferFrom(sourceAddress, destinationAddress, attorep):
-    Transfer(sourceAddress, destinationAddress, attorep)
+def transferFrom(sourceAddress: address, destinationAddress: address, attorep: uint256):
+    log(type=Transfer, sourceAddress, destinationAddress, attorep)
     return(self.backingContract.transferFrom(self.branch, sourceAddress, destinationAddress, attorep, call=delegate))
 
-def approve(spenderAddress, attorep):
-    Approval(msg.sender, spenderAddress, attorep)
+def approve(spenderAddress: address, attorep: uint256):
+    log(type=Approval, msg.sender, spenderAddress, attorep)
     return(self.backingContract.approve(self.branch, spenderAddress, attorep, call=delegate))
 
-def allowance(ownerAddress, spenderAddress):
+def allowance(ownerAddress: address, spenderAddress: address):
     return(self.backingContract.allowance(self.branch, ownerAddress, spenderAddress, call=delegate))

@@ -1,12 +1,12 @@
 # Copyright (C) 2015 Forecast Foundation OU, full GPL notice in LICENSE
 
+extern controller: [lookup:[int256]:int256, checkWhitelist:[int256]:int256]
+
 inset('../macros/refund.sem')
 
 data controller
 # forkingEvents[branch] returns event id
 data forkingEvents[]
-
-extern controller: [lookup:[int256]:int256, checkWhitelist:[int256]:int256]
 
 def init():
     self.controller = 0x0
@@ -16,9 +16,9 @@ def any():
 
 def setForkingEvent(branch, eventId):
     self.controller.checkWhitelist()
-    if (self.forkingEvents[branch] != 0):
+    if(self.forkingEvents[branch] != 0):
         ~invalid()
     self.forkingEvents[branch] = eventId
 
 def getForkingEvent(branch):
-    return(forkingEvents[branch])
+    return(self.forkingEvents[branch])

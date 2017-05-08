@@ -1,43 +1,36 @@
 # Copyright (C) 2015 Forecast Foundation OU, full GPL notice in LICENSE
 
+extern controller: [lookup:[int256]:int256, checkWhitelist:[int256]:int256]
+extern registrationToken.se: [allowance:[int256,int256,int256,int256]:uint256, approve:[int256,int256,int256,int256]:int256, registrationTokenBalance:[int256,int256,int256]:uint256, migrateRegistrationToken:[int256,int256,int256,int256]:int256, privateTransfer:[int256,int256,int256,int256,int256]:int256, redeem:[int256,int256]:_, register:[int256,int256]:_, totalSupply:[int256,int256]:uint256, transfer:[int256,int256,int256,int256]:int256, transferFrom:[int256,int256,int256,int256,int256]:int256]
+extern reputationToken.se: [allowance:[int256,int256,int256]:uint256, approve:[int256,int256,int256]:int256, balanceOf:[int256,int256]:uint256, getErc20Token:[int256]:int256, migrate:[int256,int256,int256]:int256, migrateFromLegacyRepContract:[int256]:int256, privateTransfer:[int256,int256,int256,int256]:int256, totalSupply:[int256]:uint256, transfer:[int256,int256,int256]:int256, transferFrom:[int256,int256,int256,int256]:int256]
+extern branches: [getForkingEvent:[int256]:int256, setForkingEvent:[int256,int256]:_]
+extern reporting: [assertCanReportOnEvent:[int256,int256]:int256, assertDoneReporting:[int256,int256,int256]:int256, clearUserReports:[int256,int256,int256]:int256, getCurrentReportingWindow:[]:int256, getCurrentReportingWindowEndTimestamp:[]:int256, getCurrentReportingWindowStartTimestamp:[]:int256, getReportingPeriodDurationInSeconds:[]:int256, getReportingWindowForTimestamp:[int256]:int256, getTargetReportsPerReporter:[int256,int256]:int256, getUserSeed:[int256,int256,int256]:int256, isInReportingDisputePhase:[]:int256, isInReportingPhase:[]:int256, noteUserReport:[int256,int256]:int256]
+
 inset('../macros/refund.sem')
 inset('../macros/safeMath.sem')
-inset('../macros/unitConversions')
+inset('../macros/unitConversions.sem')
 
 data controller
-data events[](
-    branch
-    endTime
-    description
-    automatedReporterAddress
-    automatedReportDueTimestamp
-    reportingWindow
-    finalOutcome
-    tentativeOutcome
-    automatedReporterOutcome
-    automatedReporterDisputeBondHolder
-    limitedReportersOutcome
-    limitedReportersDisputeBondHolder
-    allReportersOutcome
-    allReportersDisputeBondHolder
-    # tokens[branch][outcome][tokenHolderAddress]
-    tokens[][][2**160]
-    # tokenSupply[branch][outcome]
-    tokenSupply[][]
-    # allOutcomesTokenSupply[branch]
-    allOutcomesTokenSupply[]
-)
+
+# tokens[branch][outcome][tokenHolderAddress]
+# tokenSupply[branch][outcome]
+# allOutcomesTokenSupply[branch]
+data events[](branch, endTime, description, automatedReporterAddress, automatedReportDueTimestamp, reportingWindow, finalOutcome, tentativeOutcome, automatedReporterOutcome, automatedReporterDisputeBondHolder, limitedReportersOutcome, limitedReportersDisputeBondHolder, allReportersOutcome, allReportersDisputeBondHolder, tokens[][][2**160], tokenSupply[][],  allOutcomesTokenSupply[])
 # spenders[tokenHolderAddress][spenderAddress]
 data spenders[2**160][2**160]
-data nextEventId = 1
-data numberOfLimitedReporterEvents[reportingWindow]
-data numberOfAllReporterEvents[reportingWindow]
+data nextEventId
+### TODO FIX where are the setters for numberOfLimited and numberOfAll
+# takes branch, reportingWindow as index
+data numberOfLimitedReporterEvents[][]
+# takes branch, reportingWindow as index
+data numberOfAllReporterEvents[][]
 data automatedReporterDisputeBondAmount
 data limitedReportersDisputeBondAmount
 data allReportersDisputeBondAmount
 
-extern controller: [lookup:[int256]:int256, checkWhitelist:[int256]:int256]
-extern reporting: [getReportingWindowForTimestamp:[uint256]:uint256, isInDisputePhase:[]:uint256]
+event Transfer(eventId, branch:uint256:indexed, outcome, from:address:indexed, to:address:indexed, attorep:uint256)
+event Approval(owner:address:indexed, spender:address:indexed, attorep:uint256)
+
 
 def init():
     self.controller = 0x0
@@ -45,6 +38,7 @@ def init():
     self.automatedReporterDisputeBondAmount = 11 * 10**20
     self.limitedReportersDisputeBondAmount = 11 * 10**21
     self.allReportersDisputeBondAmount = 11 * 10**22
+    self.nextEventId = 1
 
 def any():
     refund()
@@ -70,7 +64,7 @@ def report(eventId, outcome, attorepStake):
     self.tryFinalizeEvent(eventId)
     self.assertEventIsNotFinalized()
 
-    self.assertInReportingPhaseOfCurrentWindow()
+    # self.assertInReportingPhaseOfCurrentWindow()
     self.assertEventIsNotDoneWithReporters()
     self.assertReporterHasRegistrationToken(msg.sender)
 
@@ -111,7 +105,7 @@ def disputeAutomatedReport(eventId):
     if (self.events[eventId].automatedReporterDisputeBondHolder != 0):
         ~invalid()
     self.assertEventIsInAutomatedReportDisputePhase(eventId)
-    self.controller.lookup('reputationToken').transferFrom(msg.sender, self, self.automatedReporterDisputeBondAmount)
+    # self.controller.lookup('reputationToken').transferFrom(msg.sender, self, self.automatedReporterDisputeBondAmount)
     self.events[eventId].automatedReporterDisputeBondHolder = msg.sender
     self.events[eventId].automatedReporterOutcome = self.events[eventId].tentativeOutcome
     self.events[eventId].tentativeOutcome = 0
@@ -123,7 +117,7 @@ def disputeLimitedReporters(eventId):
     if (self.events[eventId].limitedReportersDisputeBondHolder != 0):
         ~invalid()
     self.assertEventIsInDisputePhase()
-    self.controller.lookup('reputationToken').transferFrom(msg.sender, self, self.limitedReportersDisputeBondAmount)
+    # self.controller.lookup('reputationToken').transferFrom(msg.sender, self, self.limitedReportersDisputeBondAmount)
     self.events[eventId].limitedReportersDisputeBondHolder = msg.sender
     self.events[eventId].limitedReportersOutcome = self.events[eventId].tentativeOutcome
     self.events[eventId].tentativeOutcome = 0
@@ -136,7 +130,7 @@ def disputeAllReporters(eventId):
     if (self.events[eventId].allReportersDisputeBondHolder != 0):
         ~invalid()
     self.assertEventIsInDisputePhase()
-    self.controller.lookup('reputationToken').transferFrom(msg.sender, self, self.allReportersDisputeBondAmount)
+    # self.controller.lookup('reputationToken').transferFrom(msg.sender, self, self.allReportersDisputeBondAmount)
     self.events[eventId].allReportersDisputeBondHolder = msg.sender
     self.events[eventId].allReportersOutcome = self.events[eventId].tentativeOutcome
     self.events[eventId].tentativeOutcome = 0
@@ -175,10 +169,13 @@ def tryFinalizeEvent(eventId):
     self.events[eventId].finalOutcome = finalOutcome
     if (self.events[eventId].automatedReporterOutcome == finalOutcome && self.events[eventId].automatedReporterDisputeBondHolder != 0):
         # TODO: pay bond holder 2x bond amount, pulling from incorrect reporting pool. NOTE: this needs to decrease available funds privateRedeemCorrectOutcomeTokens pulls from
+        return(1)
     if (self.events[eventId].limitedReportersOutcome == finalOutcome && self.events[eventId].limitedReportersDisputeBondHolder != 0):
         # TODO: pay bond holder 2x bond amount, pulling from incorrect reporting pool. NOTE: this needs to decrease available funds privateRedeemCorrectOutcomeTokens pulls from
+        return(1)
     if (self.events[eventId].allReportersOutcome == finalOutcome && self.events[eventId].allReportersDisputeBondHolder != 0):
         # TODO: pay bond holder 2x bond amount, pulling from incorrect reporting pool. NOTE: this needs to decrease available funds privateRedeemCorrectOutcomeTokens pulls from
+        return(1)
     return(1)
     # FIXME: handle events that get 0 reports during their scheduled reporting window
 
@@ -191,6 +188,8 @@ def migrateEventThroughAllForks(eventId):
         return(1)
     while (self.migrateEventThroughOneFork(eventId)):
         # this will loop until we run out of gas, follow forking events until there are no more, or have reached an active fork
+        # TODO: fill in
+        return(1)
     return(1)
 
 # returns 0 if no move occurs, 1 if move occurred, throws if a fork not yet resolved
@@ -203,7 +202,7 @@ def migrateEventThroughOneFork(eventId):
     if (forkingEventId == 0):
         return(0)
     # this event is the forking event
-    if (forkingEventId = eventId):
+    if (forkingEventId == eventId):
         return(0)
     # fork not yet resolved, can't move event
     if (self.events[forkingEvent].finalOutcome == 0):
@@ -211,10 +210,10 @@ def migrateEventThroughOneFork(eventId):
     # pay back bond holders
     if (self.events[eventId].limitedReportersDisputeBondHolder != 0):
         self.events[eventId].limitedReportersDisputeBondHolder = 0
-        self.controller.lookup('reputationToken').transfer(self.events[eventId].limitedReportersDisputeBondHolder, self.limitedReportersDisputeBondAmount)
+        # self.controller.lookup('reputationToken').transfer(self.events[eventId].limitedReportersDisputeBondHolder, self.limitedReportersDisputeBondAmount)
     if (self.events[eventId].allReportersDisputeBondHolder != 0):
         self.events[eventId].allReportersDisputeBondHolder = 0
-        self.controller.lookup('reputationToken').transfer(self.events[eventId].allReportersDisputeBondHolder, self.allReportersDisputeBondAmount)
+        # self.controller.lookup('reputationToken').transfer(self.events[eventId].allReportersDisputeBondHolder, self.allReportersDisputeBondAmount)
     # follow the forking event to its branch
     self.events[eventId].branch = self.events[forkingEventId].branch
     # reset reporting state back to un-reported (except for automated)
@@ -226,9 +225,18 @@ def migrateEventThroughOneFork(eventId):
     self.events[eventId].tentativeOutcome = 0
     return(1)
 
+def getEventBranch(eventId):
+    return(self.events[eventId].branch)
+
 def getAutomatedReportDueTimestamp(eventId):
     eventEndTime = self.events[eventId].endTime
     return(eventEndTime + 3 * SECONDS_PER_DAY)
+
+def getNumberOfLimitedReporterEvents(branch, reportingWindow):
+    return(self.numberOfLimitedReporterEvents[branch][reportingWindow])
+
+def getNumberOfAllReporterEvents(branch, reportingWindow):
+    return(self.numberOfAllReporterEvents[branch][reportingWindow])
 
 def getAutomatedReportDisputeDueTimestamp(eventId):
     automatedReportDueTimestamp = self.getAutomatedReportDueTimestamp(eventId)
@@ -288,7 +296,7 @@ def assertReporterHasRegistrationToken(reporterAddress):
     registrationTokenContract = self.controller.lookup('registrationToken')
     branch = self.events[eventId].branch
     reportingWindow = self.events[eventId].reportingWindow
-    numberOfRegistrationTokens = registrationTokenContract.balanceOf(branch, reportingWindow)
+    numberOfRegistrationTokens = registrationTokenContract.registrationTokenBalance(branch, reportingWindow)
     if (numberOfRegistrationTokens < 1):
         ~invalid()
     return(1)
@@ -307,16 +315,16 @@ def balanceOf(eventId, branch, outcome, address):
 	return(self.events[eventId].tokens[branch][outcome][address]: uint256)
 
 def transfer(eventId, branch, outcome, destinationAddress, attotoken):
-    return(privateTransfer(eventId, branch, outcome, msg.sender, destinationAddress, attotoken))
+    return(self.privateTransfer(eventId, branch, outcome, msg.sender, destinationAddress, attotoken))
 
 def transferFrom(eventId, branch, outcome, sourceAddress, destinationAddress, attotoken):
     startingLimit = self.spenders[sourceAddress][msg.sender]
     self.spenders[sourceAddress][msg.sender] = safeSub(startingLimit, attotoken)
-    return(privateTransfer(eventId, branch, outcome, sourceAddress, destinationAddress, attotoken))
+    return(self.privateTransfer(eventId, branch, outcome, sourceAddress, destinationAddress, attotoken))
 
 def approve(spenderAddress, attotoken):
     self.spenders[msg.sender][spenderAddress] = attotoken
-    Approval(msg.sender, spenderAddress, attotoken)
+    log(type = Approval, msg.sender, spenderAddress, attotoken)
     return(1)
 
 def allowance(ownerAddress, spenderAddress):
@@ -336,7 +344,7 @@ def privateTransfer(eventId, branch, outcome, sourceAddress, destinationAddress,
     startingDestinationAttotoken = self.events[eventId].tokens[branch][outcome][destinationAddress]
     self.events[eventId].tokens[branch][outcome][sourceAddress] = safeSub(startingSourceAttotoken, attotoken)
     self.events[eventId].tokens[branch][outcome][destinationAddress] = safeAdd(startingDestinationAttotoken, attotoken)
-    Transfer(eventId, branch, outcome, sourceAddress, destinationAddress, attotoken)
+    log(type = Transfer, eventId, branch, outcome, sourceAddress, destinationAddress, attotoken)
     return(1)
 
 def privateBuyToken(eventId, outcome, reporterAddress, attotoken):
@@ -344,7 +352,7 @@ def privateBuyToken(eventId, outcome, reporterAddress, attotoken):
     # transfer REP from user to events contract
     reputationContract = self.controller.lookup('reputation')
     branch = self.events[eventId].branch
-    reputationContract.transferFrom(branch, reporterAddress, self, attorepStake)
+    # reputationContract.transferFrom(branch, reporterAddress, self, attorepStake)
     # create/assign outcome token
     startingAttotoken = self.events[eventId].tokens[branch][outcome][reporterAddress]
     startingTokenSupply = self.events[eventId].tokenSupply[branch][outcome]
@@ -356,32 +364,32 @@ def privateBuyToken(eventId, outcome, reporterAddress, attotoken):
 # if another event caused a fork after users had bought outcome tokens on this branch, allow them to be traded back in for REP at face value on this branch
 def privateTryRedeemTokensForNonForkingEventOnForkedBranch(eventId, branch, outcome, tokenHolderAddress):
     privateOnly()
-    forkingEventId = self.controller.lookup('branches').forkingEvents[branch]
+    forkingEventId = self.controller.lookup('branches').getForkingEvent(branch)
     if (forkingEventId == 0):
         return(0)
     if (forkingEventId == eventId):
         return(0)
     tokensToRedeem = self.events[eventId].tokens[branch][outcome][tokenHolderAddress]
     self.events[eventId].tokens[branch][outcome][tokenHolderAddress] = 0
-    self.controller.lookup('reputationToken').transfer(branch, tokenHolderAddress, tokensToRedeem)
+    # self.controller.lookup('reputationToken').transfer(branch, tokenHolderAddress, tokensToRedeem)
     return(1)
 
 # if this event is the cause of a fork, force tokens to be redeemed on the branch associated with the token's outcome
 def privateTryRedeemTokensOnForkingEvent(eventId, branch, outcome, tokenHolderAddress):
     privateOnly()
     # FIXME: need to redeem fees, but the current implementation just redeems tokens on outcome branch. CONSIDER: change this to only allow token redemption after event is finalized, then we can also distribute fees on correct outcome branch
-    forkingEventId = self.controller.lookup('branches').forkingEvents[branch]
+    forkingEventId = self.controller.lookup('branches').getForkingEvent(branch)
     if (forkingEventId == 0):
         return(0)
     if (forkingEventId != eventId):
         return(0)
     parentBranchBits = sha3(branch) & 0xffffffffffffffff000000000000000000000000000000000000000000000000
     eventBits = sha3(eventId) & 0x0000000000000000ffffffffffffffff00000000000000000000000000000000
-    outcomeBits = sha3(outcome) & 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff
+    outcomeBits = sha3(outcome) & x
     outcomeBranch = parentBranchBits | eventBits | outcomeBits
     attotokens = self.events[eventId].tokens[branch][outcome][tokenHolderAddress]
     self.controller.lookup('reputationToken').migrate(branch, outcomeBranch, attotokens)
-    self.controller.lookup('reputationToken').transfer(outcomeBranch, tokenHolderAddress, attotokens)
+    # self.controller.lookup('reputationToken').transfer(outcomeBranch, tokenHolderAddress, attotokens)
     return(1)
 
 def privateRedeemCorrectOutcomeTokens(eventId, branch, outcome, tokenHolderAddress):
@@ -399,13 +407,13 @@ def privateRedeemCorrectOutcomeTokens(eventId, branch, outcome, tokenHolderAddre
     self.events[eventId].tokens[branch][outcome][msg.sender] = 0
     self.events[eventId].tokenSupply[branch][outcome] = safeSub(startingTokenSupply, attotokens)
     self.events[eventId].allOutcomesTokenSupply[branch] = safeSub(startingAllOutcomesTokenSupply, attotokens)
-    self.controller.lookup('reputationToken').transfer(branch, msg.sender, attorep)
+    # self.controller.lookup('reputationToken').transfer(branch, msg.sender, attorep)
     return(1)
 
 def privateAdjustTentativeOutcome(eventId, outcome):
     privateOnly()
     branch = self.events[eventId].branch
-    tentativeOutcomeSupply = self.events[eventId].tokenSupply[branch][self.tentativeOutcome]
+    tentativeOutcomeSupply = self.events[eventId].tokenSupply[branch][self.events[eventId].tentativeOutcome]
     thisOutcomeSupply = self.events[eventId].tokenSupply[branch][outcome]
     if (tentativeOutcomeSupply < thisOutcomeSupply):
-        self.tentativeOutcome = outcome
+        self.events[eventId].tentativeOutcome = outcome

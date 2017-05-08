@@ -1,5 +1,8 @@
 # Copyright (C) 2015 Forecast Foundation OU, full GPL notice in LICENSE
 
+extern controller: [lookup:[int256]:int256, checkWhitelist:[int256]:int256]
+extern events: [allowance:[int256,int256]:uint256, approve:[int256,int256]:int256, assertEventIsInAutomatedReportDisputePhase:[int256]:int256, assertEventIsInAutomatedReportPhase:[int256]:int256, assertEventIsInCurrentReportingWindow:[int256]:int256, assertEventIsInDisputePhase:[int256]:int256, assertEventIsInReportingPhase:[int256]:int256, assertEventIsNotDoneWithReporters:[int256]:int256, assertEventIsNotFinalized:[int256]:int256, assertReporterHasRegistrationToken:[int256]:int256, automatedReport:[int256,int256]:_, balanceOf:[int256,int256,int256,int256]:uint256, createEvent:[int256,int256,int256,int256]:int256, disputeAllReporters:[int256]:_, disputeAutomatedReport:[int256]:_, disputeLimitedReporters:[int256]:_, finalizeEvent:[int256]:_, getAutomatedReportDisputeDueTimestamp:[int256]:int256, getAutomatedReportDueTimestamp:[int256]:int256, getEventBranch:[int256]:int256, getNumberOfAllReporterEvents:[int256,int256]:int256, getNumberOfLimitedReporterEvents:[int256,int256]:int256, isEventFinalized:[int256]:int256, migrateEventThroughAllForks:[int256]:int256, migrateEventThroughOneFork:[int256]:int256, privateAdjustTentativeOutcome:[int256,int256]:_, privateBuyToken:[int256,int256,int256,int256]:_, privateRedeemCorrectOutcomeTokens:[int256,int256,int256,int256]:int256, privateTransfer:[int256,int256,int256,int256,int256,int256]:int256, privateTryRedeemTokensForNonForkingEventOnForkedBranch:[int256,int256,int256,int256]:int256, privateTryRedeemTokensOnForkingEvent:[int256,int256,int256,int256]:int256, redeemTokens:[int256,int256,int256]:int256, report:[int256,int256,int256]:int256, totalSupply:[int256,int256,int256]:uint256, transfer:[int256,int256,int256,int256,int256]:int256, transferFrom:[int256,int256,int256,int256,int256,int256]:int256, tryFinalizeEvent:[int256]:int256]
+
 inset('../macros/refund.sem')
 inset('../macros/safeMath.sem')
 inset('../macros/unitConversions.sem')
@@ -7,13 +10,9 @@ inset('../macros/unitConversions.sem')
 data controller
 data reportingPeriodSeconds
 data reportingDisputePeriodSeconds
-data reportersPerEvent
+data reportsPerEvent
 # userReports[branch][reportingWindow][reporterAddress]
-data userReports[][2**160](reportedEvents[], reportedEventsCount, seed)
-
-extern controller: [lookup:[int256]:int256, checkWhitelist:[int256]:int256]
-extern events: [getNumberOfLimitedReporterEvents:[uint256,uint256]:uint256]
-extern registrationToken: [totalSupply:[uint256,uint256]:uint256]
+data userReports[][][](reportedEvents[], reportedEventsCount, seed)
 
 def init():
     self.controller = 0x0
@@ -47,13 +46,16 @@ def assertDoneReporting(branch, reportingWindow, reporterAddress):
     totalLimitedReporterEvents = eventsContract.getNumberOfLimitedReporterEvents(branch, reportingWindow)
     targetReports = self.getTargetReportsPerReporter(branch, reportingWindow)
     # TODO: test this to make sure that a user can't run out of events without reaching target
-    if (self.userReports[branch][reportingWindow][reporterAddress] < targetReports):
+    if (self.userReports[branch][reportingWindow][reporterAddress].reportedEventsCount < targetReports):
         ~invalid()
     return(1)
 
 def clearUserReports(branch, reportingWindow, reporterAddress):
     self.controller.checkWhitelist(msg.sender)
-    self.userReports[branch][reportingWindow][reporterAddress].reportedEvents = array(0)
+    i = 0
+    while(i < self.userReports[branch][reportingWindow][reporterAddress].reportedEventsCount):
+        self.userReports[branch][reportingWindow][reporterAddress].reportedEvents[i] = 0
+        i += 1
     self.userReports[branch][reportingWindow][reporterAddress].reportedEventsCount = 0
     self.userReports[branch][reportingWindow][reporterAddress].seed = 0
     return(1)
@@ -67,14 +69,14 @@ def noteUserReport(branch, eventId):
     return(1)
 
 def isInReportingPhase():
-    startTime = self.getReportingWindowStartTimestamp()
+    startTime = self.getCurrentReportingWindowStartTimestamp()
     endTime = startTime + self.reportingPeriodSeconds
     nowIsAfterStartTime = block.timestamp > startTime
     nowIsBeforeEndTime = block.timestamp < endTime
     return(nowIsAfterStartTime && nowIsBeforeEndTime)
 
 def isInReportingDisputePhase():
-    startTime = self.getReportingWindowStartTimestamp() + self.reportingPeriodSeconds
+    startTime = self.getCurrentReportingWindowStartTimestamp() + self.reportingPeriodSeconds
     endTime = startTime + self.reportingDisputePeriodSeconds
     nowIsAfterStartTime = block.timestamp > startTime
     nowIsBeforeEndTime = block.timestamp < endTime
@@ -93,7 +95,7 @@ def getCurrentReportingWindowStartTimestamp():
     return(self.getCurrentReportingWindow() * self.getReportingPeriodDurationInSeconds())
 
 def getCurrentReportingWindowEndTimestamp():
-    return(self.getReportingWindowStartTimestamp() + self.getReportingPeriodDurationInSeconds())
+    return(self.getCurrentReportingWindowStartTimestamp() + self.getReportingPeriodDurationInSeconds())
 
 def getTargetReportsPerReporter(branch, reportingWindow):
     numberOfLimitedReporterEvents = self.controller.lookup('events').getNumberOfLimitedReporterEvents(branch, reportingWindow)

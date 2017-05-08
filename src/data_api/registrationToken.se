@@ -1,5 +1,10 @@
 # Copyright (C) 2015 Forecast Foundation OU, full GPL notice in LICENSE
 
+extern controller: [lookup:[int256]:int256, checkWhitelist:[int256]:int256]
+extern reputationToken.se: [allowance:[int256,int256,int256]:uint256, approve:[int256,int256,int256]:int256, balanceOf:[int256,int256]:uint256, getErc20Token:[int256]:int256, migrate:[int256,int256,int256]:int256, migrateFromLegacyRepContract:[int256]:int256, privateTransfer:[int256,int256,int256,int256]:int256, totalSupply:[int256]:uint256, transfer:[int256,int256,int256]:int256, transferFrom:[int256,int256,int256,int256]:int256]
+extern branches: [getForkingEvent:[int256]:int256, setForkingEvent:[int256,int256]:_]
+extern reporting: [assertCanReportOnEvent:[int256,int256]:int256, assertDoneReporting:[int256,int256,int256]:int256, clearUserReports:[int256,int256,int256]:int256, getCurrentReportingWindow:[]:int256, getCurrentReportingWindowEndTimestamp:[]:int256, getCurrentReportingWindowStartTimestamp:[]:int256, getReportingPeriodDurationInSeconds:[]:int256, getReportingWindowForTimestamp:[int256]:int256, getTargetReportsPerReporter:[int256,int256]:int256, getUserSeed:[int256,int256,int256]:int256, isInReportingDisputePhase:[]:int256, isInReportingPhase:[]:int256, noteUserReport:[int256,int256]:int256]
+
 inset('../macros/safeMath.sem')
 inset('../macros/refund.sem')
 
@@ -13,13 +18,8 @@ data spenders[][][2**160][2**160]
 # tokenSupply[branch][reporting_window] returns a count of outstanding registration tokens
 data tokenSupply[][]
 
-extern controller: [lookup:[int256]:int256, checkWhitelist:[int256]:int256]
-extern reputationToken: [transferFrom:[uint256,address,address,uint256]:uint256]
-extern branches: [getForkingEvent[uint256]:uint256]
-extern reporting: [assertUserDoneReporting[uint256,uint256,address]:uint256, clearUserReports[uint256,uint256,address]:uint256, getCurrentReportingWindow[]:uint256]
-
-event Transfer(branch:uint256:indexed, reportingWindow:uint256:indexed, from:address:indexed, to:address:indexed, attorep:uint256)
-event Approval(branch:uint256:indexed, reportingWindow:uint256:indexed, owner:address:indexed, spender:address:indexed, attorep:uint256)
+event Transfer(branch:uint256:indexed, reportingWindow:uint256, from:address:indexed, to:address:indexed, attorep:uint256)
+event Approval(branch:uint256:indexed, reportingWindow:uint256, owner:address:indexed, spender:address:indexed, attorep:uint256)
 
 def init():
     self.controller = 0x0
@@ -37,7 +37,7 @@ def register(branch, reportingWindow):
     startingTokens = self.tokens[branch][reportingWindow][msg.sender]
     self.tokens[branch][reportingWindow][msg.sender] = safeAdd(startingRegistrationTokens, 1)
 
-def migrate(parentBranch, childBranch, reportingWindow, tokensToMigrate):
+def migrateRegistrationToken(parentBranch, childBranch, reportingWindow, tokensToMigrate):
     branchesContract = self.controller.lookup('branches')
     # validate that the source branch is actually forked/forking
     parentForkingEvent = branchesContract.getForkingEvent(parentBranch)
@@ -63,7 +63,7 @@ def redeem(branch, reportingWindow):
     startingTokens = self.tokens[branch][reportingWindow][msg.sender]
     startingSupply = self.tokenSupply[branch][reportingWindow]
     reportingContract = self.controller.lookup('reporting')
-    reportingContract.assertUserDoneReporting(branch, reportingWindow, msg.sender)
+    reportingContract.assertDoneReporting(branch, reportingWindow, msg.sender)
     self.tokens[branch][reportingWindow][msg.sender] = safeSub(startingTokens, 1)
     self.tokenSupply[branch][reportingWindow] = safeSub(startingSupply, 1)
     reportingContract.clearUserReports(branch, reportingWindow, msg.sender)
@@ -76,20 +76,20 @@ def redeem(branch, reportingWindow):
 def totalSupply(branch, reportingWindow):
 	return(self.tokenSupply[branch][reportingWindow]: uint256)
 
-def balanceOf(branch, reportingWindow, address):
-	return(self.reputation[branch][reportingWindow][address]: uint256)
+def registrationTokenBalance(branch, reportingWindow, address):
+	return(self.tokens[branch][reportingWindow][address]: uint256)
 
 def transfer(branch, reportingWindow, destinationAddress, attorep):
-    return(privateTransfer(branch, reportingWindow, msg.sender, destinationAddress, attorep))
+    return(self.privateTransfer(branch, reportingWindow, msg.sender, destinationAddress, attorep))
 
 def transferFrom(branch, reportingWindow, sourceAddress, destinationAddress, attorep):
     startingLimit = self.spenders[branch][reportingWindow][sourceAddress][msg.sender]
     self.spenders[branch][reportingWindow][sourceAddress][msg.sender] = safeSub(startingLimit, attorep)
-    return(privateTransfer(branch, reportingWindow, sourceAddress, destinationAddress, attorep))
+    return(self.privateTransfer(branch, reportingWindow, sourceAddress, destinationAddress, attorep))
 
 def approve(branch, reportingWindow, spenderAddress, attorep):
     self.spenders[branch][reportingWindow][msg.sender][spenderAddress] = attorep
-    Approval(branch, reportingWindow, msg.sender, spenderAddress, attorep)
+    log(type = Approval, branch, reportingWindow, msg.sender, spenderAddress, attorep)
     return(1)
 
 def allowance(branch, reportingWindow, ownerAddress, spenderAddress):
@@ -105,9 +105,9 @@ macro privateOnly():
 
 def privateTransfer(branch, reportingWindow, sourceAddress, destinationAddress, attorep):
     privateOnly()
-    startingSourceTokens = self.reputation[branch][reportingWindow][sourceAddress]
-    startingDestinationTokens = self.reputation[branch][reportingWindow][destinationAddress]
-    self.reputation[branch][reportingWindow][sourceAddress] = safeSub(startingSourceTokens, attorep)
-    self.reputation[branch][reportingWindow][destinationAddress] = safeAdd(startingDestinationTokens, attorep)
-    Transfer(branch, reportingWindow, sourceAddress, destinationAddress, attorep)
+    startingSourceTokens = self.tokens[branch][reportingWindow][sourceAddress]
+    startingDestinationTokens = self.tokens[branch][reportingWindow][destinationAddress]
+    self.tokens[branch][reportingWindow][sourceAddress] = safeSub(startingSourceTokens, attorep)
+    self.tokens[branch][reportingWindow][destinationAddress] = safeAdd(startingDestinationTokens, attorep)
+    log(type = Transfer, branch, reportingWindow, sourceAddress, destinationAddress, attorep)
     return(1)

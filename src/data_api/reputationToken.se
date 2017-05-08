@@ -1,11 +1,12 @@
 # Copyright (C) 2015 Forecast Foundation OU, full GPL notice in LICENSE
 
+extern repContract: [balanceOf:[address]:uint256, transferFrom:[address,address,uint256]:uint256]
+extern reputationTokenErc20Wrapper.se: [allowance:[address,address]:int256, approve:[address,uint256]:int256, balanceOf:[address]:int256, initialize:[int256]:int256, totalSupply:[]:int256, transfer:[address,uint256]:int256, transferFrom:[address,address,uint256]:int256]
+extern controller: [lookup:[int256]:int256, checkWhitelist:[int256]:int256]
+extern branches: [getForkingEvent:[int256]:int256, setForkingEvent:[int256,int256]:_]
+
 inset('../macros/safeMath.sem')
 inset('../macros/refund.sem')
-
-# TODO: change this to match the address of the REP contract on the target network
-LEGACY_REP_CONTRACT = 0x0
-extern repContract: [balanceOf:[address]:uint256, transferFrom:[address,address,uint256]:uint256]
 
 data controller
 # tokens[branch][token_holder_address] returns attorep
@@ -16,12 +17,15 @@ data spenders[][2**160][2**160]
 data tokenSupply[]
 # erc20Tokens[branch] returns token contract address
 data erc20Tokens[]
-
-extern controller: [lookup:[int256]:int256, checkWhitelist:[int256]:int256]
-extern branches: [getForkingEvent[uint256]:uint256]
+data name
+data symbol
+data decimals
 
 event Transfer(branch:uint256:indexed, from:address:indexed, to:address:indexed, attorep:uint256)
 event Approval(branch:uint256:indexed, owner:address:indexed, spender:address:indexed, attorep:uint256)
+
+# TODO: change this to match the address of the REP contract on the target network
+LEGACY_REP_CONTRACT = 0x0
 
 def init():
     self.controller = 0x0
@@ -33,12 +37,13 @@ def init():
 def any():
     refund()
 
+# TODO Fix this wrapper thing doesn't work
 def getErc20Token(branch):
     if (self.erc20Tokens[branch] == 0):
         contractAddress = create('reputationTokenErc20Wrapper.se')
-        contractAddress.setBranch(branch)
+        contractAddress.initialize(branch)
         self.erc20Tokens[branch] = contractAddress
-    return(self.erc20Tokens[branch]: address)
+    return(self.erc20Tokens[branch])
 
 def migrate(sourceBranch, destinationBranch, attorepToMigrate):
     # validate that the source branch is actually forked/forking
@@ -81,16 +86,16 @@ def balanceOf(branch, address):
     return(self.tokens[branch][address]: uint256)
 
 def transfer(branch, destinationAddress, attorep):
-    return(privateTransfer(branch, msg.sender, destinationAddress, attorep))
+    return(self.privateTransfer(branch, msg.sender, destinationAddress, attorep))
 
 def transferFrom(branch, sourceAddress, destinationAddress, attorep):
     startingLimit = self.spenders[branch][sourceAddress][msg.sender]
     self.spenders[branch][sourceAddress][msg.sender] = safeSub(startingLimit, attorep)
-    return(privateTransfer(branch, sourceAddress, destinationAddress, attorep))
+    return(self.privateTransfer(branch, sourceAddress, destinationAddress, attorep))
 
 def approve(branch, spenderAddress, attorep):
     self.spenders[branch][msg.sender][spenderAddress] = attorep
-    Approval(branch, msg.sender, spenderAddress, attorep)
+    log(type = Approval, branch, msg.sender, spenderAddress, attorep)
     return(1)
 
 def allowance(branch, ownerAddress, spenderAddress):
@@ -110,5 +115,5 @@ def privateTransfer(branch, sourceAddress, destinationAddress, attorep):
     startingDestinationAttoRep = self.tokens[branch][destinationAddress]
     self.tokens[branch][sourceAddress] = safeSub(startingSourceAttoRep, attorep)
     self.tokens[branch][destinationAddress] = safeAdd(startingDestinationAttoRep, attorep)
-    Transfer(branch, sourceAddress, destinationAddress, attorep)
+    log(type = Transfer, branch, sourceAddress, destinationAddress, attorep)
     return(1)
