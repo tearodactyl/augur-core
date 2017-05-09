@@ -21,6 +21,7 @@ data controller
 event fundedAccount(branch: indexed, sender: indexed, cashBalance, repBalance, timestamp)
 
 ### Reputation faucet - get ~free rep!
+### TODO Fix to work with new system
 
 def init():
     self.controller = 0x0

@@ -388,6 +388,7 @@ def privateTryRedeemTokensOnForkingEvent(eventId, branch, outcome, tokenHolderAd
     outcomeBits = sha3(outcome) & 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff
     outcomeBranch = parentBranchBits | eventBits | outcomeBits
     attotokens = self.events[eventId].tokens[branch][outcome][tokenHolderAddress]
+    # FIXME something seems fishy here
     self.controller.lookup('reputationToken').migrate(branch, outcomeBranch, attotokens)
     # self.controller.lookup('reputationToken').transfer(outcomeBranch, tokenHolderAddress, attotokens)
     return(1)

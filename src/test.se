@@ -1,13 +1,6 @@
-data banana
-
-data controller
-
-extern subcurrency: [allowance:[address,address]:uint256, approve:[address,uint256]:uint256, balanceOf:[address]:uint256, decimals:[]:uint256, name:[]:uint256, symbol:[]:uint256, totalSupply:[]:uint256, transfer:[address,uint256]:uint256, transferFrom:[address,address,uint256]:uint256]
-
-def init():
-    self.controller = 0x0
+extern test2.se: [ok:[]:int256]
 
 def ok():
-    x = create('functions/cash.se')
-    y = x.allowance(msg.sender, self, gas = 30000)
-    return(y)
+    x = create('test2.se')
+    y = x.ok(call = delegate)
+    return([y, msg.sender]: arr)
