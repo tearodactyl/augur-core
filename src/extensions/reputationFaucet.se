@@ -14,7 +14,7 @@ extern branches: [addCurrency:[int256,int256,int256,int256]:int256, addMarketToB
 # using refund
 inset('../macros/refund.sem')
 # using fix
-inset('../macros/float.sem')
+inset('../macros/safeMath.sem')
 
 data controller
 

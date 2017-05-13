@@ -1,3 +1,5 @@
+# Copyright (C) 2015 Forecast Foundation OU, full GPL notice in LICENSE
+
 #### Tests ####
 
 macro safeToAdd($a, $b):
@@ -10,9 +12,6 @@ macro safeToSubtract($a, $b):
 macro safeToMultiply($a, $b):
     $c = $a * $b
     ($a == 0 || ($c / $a) == $b)
-
-macro safeToDivide($a, $b):
-    ($b != 0)
 
 #### Operations ####
 
@@ -33,6 +32,24 @@ macro safeMul($x, $y):
     $x * $y
 
 macro safeDiv($x, $y):
-    if(!safeToDivide($x, $y)):
+    if($y == 0):
         ~invalid()
     $x / $y
+
+### Float [fixed point] Operations ###
+
+macro safeFxpMul($x, $y):
+    if(!safeToMultiply($x, $y)):
+        ~invalid()
+    $x * $y / 10 ** 18
+
+macro safeFxpDiv($x, $y):
+    if($y == 0 or !safeToMultiply($x, 10 ** 18)):
+        ~invalid()
+    $x * 10 ** 18 / $y
+
+macro unfix($x):
+    $x / 10 ** 18
+
+macro fix($x):
+    $x * 10 ** 18

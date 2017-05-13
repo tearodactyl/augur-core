@@ -2,7 +2,7 @@
 
 extern controller: [lookup:[int256]:int256, assertIsWhitelisted:[int256]:int256]
 
-inset('../macros/float.sem')
+inset('../macros/safeMath.sem')
 inset('../macros/refund.sem')
 
 ### Storage of all data associated with orders
