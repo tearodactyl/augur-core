@@ -12,7 +12,7 @@ macro safeToMultiply($a, $b):
     ($a == 0 || ($c / $a) == $b)
 
 macro safeToDivide($a, $b):
-    ($y != 0)
+    ($b != 0)
 
 #### Operations ####
 
